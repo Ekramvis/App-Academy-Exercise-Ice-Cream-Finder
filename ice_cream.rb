@@ -1,12 +1,30 @@
 require 'rest-client'
 require 'json'
 require 'addressable/uri'
+require 'nokogiri'
 require_relative 'secrets.rb'
 
+#http://maps.googleapis.com/maps/api/geocode/output?parameters
 
-### DO NOT COMMIT API KEY TO GIT!!!!!!!!
-# 1) Get request from API
-# - give ice cream shops based on location
+puts 'Type in your current location: '
+start_loc = gets.chomp
+
+start_address = Addressable::URI.new(
+   :scheme => "https",
+   :host => "maps.googleapis.com",
+   :path => "maps/api/geocode/json",
+   :query_values => {
+     :address => start_loc,
+     :sensor => "false",
+   }
+ ).to_s
+
+
+loc_response = RestClient.get(start_address)
+start_coords = JSON.parse(loc_response)
+start_coords = start_coords["results"][0]["geometry"]["location"]
+start_lat = start_coords["lat"]
+start_lng = start_coords["lng"]
 
 
 test_address = Addressable::URI.new(
@@ -15,7 +33,7 @@ test_address = Addressable::URI.new(
    :path => "maps/api/place/nearbysearch/json",
    :query_values => {
      :key => API_KEY,
-     :location => "40.7309,-73.991305",
+     :location => "#{start_lat},#{start_lng}",
      :sensor => "false",
      :keyword => "ice cream",
      :rankby => "distance"
@@ -73,9 +91,10 @@ direction_request = Addressable::URI.new(
    :host => "maps.googleapis.com",
    :path => "maps/api/directions/json",
    :query_values => {
-     :origin => "40.7309,-73.991305",
+     :origin => "#{start_lat},#{start_lng}",
      :destination => "#{choice_lat},#{choice_lng}",
-     :sensor => "false"
+     :sensor => "false",
+     :mode => "walking"
    }
  ).to_s
 
@@ -85,4 +104,15 @@ direction_response = RestClient.get(direction_request)
 directions = JSON.parse(direction_response)
 
 
-# 7) Display directions to user
+html_steps = []
+
+directions["routes"][0]["legs"][0]["steps"].each do |step|
+  html_steps << step["html_instructions"]
+end
+
+html_steps.map! { |step| Nokogiri::HTML(step) }
+
+html_steps.each_with_index do |step, i|
+
+  puts "#{i + 1}: #{step.text}"
+end
